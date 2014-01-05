@@ -1,6 +1,6 @@
 /*
  * hrepsh - 
- * Copyright (C) 2013  Guy Rutenberg
+ * Copyright (C) 2013-2014 Guy Rutenberg
  * http://www.guyrutenberg.com
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -24,18 +24,20 @@
 #include <error.h>
 
 #include <boost/format.hpp>
+#include <boost/program_options.hpp>
+namespace po = boost::program_options;
 
-#include "cryptopp/integer.h"
+#include <cryptopp/integer.h>
 using CryptoPP::Integer;
 
-#include "cryptopp/osrng.h"
+#include <cryptopp/osrng.h>
 using CryptoPP::AutoSeededRandomPool;
 
-#include "cryptopp/cryptlib.h"
+#include <cryptopp/cryptlib.h>
 using CryptoPP::BufferedTransformation;
 using CryptoPP::AuthenticatedSymmetricCipher;
 
-#include "cryptopp/filters.h"
+#include <cryptopp/filters.h>
 using CryptoPP::Redirector;
 using CryptoPP::StringSink;
 using CryptoPP::StringSource;
@@ -43,23 +45,33 @@ using CryptoPP::HashFilter;
 using CryptoPP::AuthenticatedEncryptionFilter;
 using CryptoPP::AuthenticatedDecryptionFilter;
 
-#include "cryptopp/hmac.h"
+#include <cryptopp/files.h>
+using CryptoPP::FileSource;
+
+#include <cryptopp/hmac.h>
 using CryptoPP::HMAC;
 
-#include "cryptopp/sha.h"
+#include <cryptopp/sha.h>
 using CryptoPP::SHA256;
 
-#include "cryptopp/aes.h"
+#include <cryptopp/aes.h>
 using CryptoPP::AES;
 
-#include "cryptopp/gcm.h"
+#include <cryptopp/gcm.h>
 using CryptoPP::GCM;
 
-#include "cryptopp/hex.h"
+#include <cryptopp/hex.h>
 using CryptoPP::HexEncoder;
 using CryptoPP::HexDecoder;
 
+#include "config.h"
+
 using namespace std;
+
+#define IV_SIZE AES::BLOCKSIZE
+enum {
+	INVALID_INPUT = 2,
+};
 
 /**
  * Get the path to the executable of the parent process.
@@ -77,14 +89,14 @@ string get_parent_process_path()
 	return parent_path;
 }
 
-string get_key()
+string get_key(string parent_path)
 {
 	// the following shall be replaced by a real secret key...
 	string secret_key("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 	uid_t user = getuid();
 	string salt = ((boost::format("%d") % user).str() + 
 		string("\x00", 1) + 
-		get_parent_process_path());
+		parent_path);
 	string final_key;
 
 	try {
@@ -106,46 +118,70 @@ string get_key()
 
 int main(int argc, char **argv)
 {
-	cout << "Hello world" << endl;
-	cout << get_parent_process_path() << endl;
+	string file_name;
+	po::options_description desc("Options");
+        desc.add_options()
+		("help,h", "display this help message and exit")
+		("version", "output version information and exit")
+		("encrypt,e", po::value<string>(&file_name),
+			"encrypt the input for the specified program.")
+        ;
 
-	AutoSeededRandomPool prng;
-	byte iv[ AES::BLOCKSIZE ];
-	prng.GenerateBlock( iv, sizeof(iv) );    
-
-	string plain = "Test Vector";
-	string cipher;
-
-	GCM<AES>::Encryption e;
-	string key = get_key();
-	e.SetKeyWithIV((const byte*)key.data(), key.size(), iv, sizeof(iv));
-
-	string encoded;
-	encoded.clear();
-	StringSource(key, true,
-			new HexEncoder(
-				new StringSink(encoded)
-				) // HexEncoder
-		    ); // StringSource
-
-	cout << "key: " << encoded << endl;
-
-	StringSource( plain, true,
-		new AuthenticatedEncryptionFilter( e,
-			new StringSink( cipher )
-			) // AuthenticatedEncryptionFilter
-		); // StringSource
-	cout << "plain len: " << plain.size() << endl;
-	cout << "cipher len: " << cipher.size() << endl;
-	
-	string rpdata;
+	po::variables_map vm;
 	try {
+		po::store(po::parse_command_line(argc, argv, desc), vm);
+		po::notify(vm);    
+	} catch ( const po::error& e ) {
+		cerr << PACKAGE ": " << e.what() << endl;
+		cerr << "Try `" PACKAGE " --help' for more information. "
+			<< endl;
+		return 1;
+	}
+
+	if (vm.count("help")) {
+		cout << PACKAGE_STRING
+			" - Secure password/passphrase generator" << endl;
+		cout << "Synopsis:" << endl;
+		cout << "  " PACKAGE " [options]" << endl << endl;
+		cout << desc << endl;
+		return 0;
+	}
+	if (vm.count("version")) {
+		cout << PACKAGE_STRING << endl;
+		cout << "Copyright (C) 2013-2014 Guy Rutenberg " << endl;
+		return 0;
+	}
+
+	string output;
+	if (vm.count("encrypt")) {
+		string key = get_key(file_name);
+		AutoSeededRandomPool prng;
+		byte iv[ IV_SIZE ];
+		prng.GenerateBlock( iv, sizeof(iv) );    
+		output = string(reinterpret_cast<char *>(iv), sizeof(iv));
+
+		GCM<AES>::Encryption e;
+		e.SetKeyWithIV((const byte*)key.data(), key.size(), iv, sizeof(iv));
+
+		FileSource( cin, true,
+			new AuthenticatedEncryptionFilter( e,
+				new StringSink( output )
+				) // AuthenticatedEncryptionFilter
+			); // StringSource
+	} else { // decrypt whatever on stdin
+		string key = get_key(get_parent_process_path());
+		byte iv[ AES::BLOCKSIZE ];
+		cin.read(reinterpret_cast<char *>(iv), sizeof(iv));
+		if (!cin) {
+			// couldn't 
+			exit(INVALID_INPUT);
+		}
 		GCM< AES >::Decryption d;
-			d.SetKeyWithIV( (const byte*)key.data(), key.size(), iv, sizeof(iv) );
-			// d.SpecifyDataLengths( 0, cipher.size()-TAG_SIZE, 0 );
-			
+		d.SetKeyWithIV( (const byte*)key.data(), key.size(), iv, sizeof(iv) );
+
+		try {
 			AuthenticatedDecryptionFilter df( d,
-					new StringSink( rpdata ),
+					new StringSink( output ),
 					AuthenticatedDecryptionFilter::DEFAULT_FLAGS
 					); // AuthenticatedDecryptionFilter
 		
@@ -156,7 +192,7 @@ int main(int argc, char **argv)
 			//  the DecryptionFilter, we must use a redirector
 			//  or manually Put(...) into the filter without
 			//  using a StringSource.
-			StringSource( cipher, true,
+			FileSource ( cin, true,
 					new Redirector( df /*, PASS_EVERYTHING */ )
 				    ); // StringSource
 		
@@ -164,22 +200,24 @@ int main(int argc, char **argv)
 			//  opportunity to check the data's integrity
 			bool b = df.GetLastResult();
 			assert( true == b );
-			
-			cout << "recovered text: " << rpdata << endl;
-	} catch( CryptoPP::HashVerificationFilter::HashVerificationFailed& e ) {
-		cerr << "Caught HashVerificationFailed..." << endl;
+		} catch( CryptoPP::HashVerificationFilter::HashVerificationFailed& e ) {
+			cerr << "Caught HashVerificationFailed..." << endl;
 			cerr << e.what() << endl;
 			cerr << endl;
-	} catch( CryptoPP::InvalidArgument& e ) {
-		cerr << "Caught InvalidArgument..." << endl;
+			exit(INVALID_INPUT);
+		} catch( CryptoPP::InvalidArgument& e ) {
+			cerr << "Caught InvalidArgument..." << endl;
 			cerr << e.what() << endl;
 			cerr << endl;
-	} catch( CryptoPP::Exception& e ) {
-		cerr << "Caught Exception..." << endl;
+			exit(INVALID_INPUT);
+		} catch( CryptoPP::Exception& e ) {
+			cerr << "Caught Exception..." << endl;
 			cerr << e.what() << endl;
 			cerr << endl;
+			exit(INVALID_INPUT);
+		}
 	}
-	
 
+	cout << output ;
 	return 0;
 }
