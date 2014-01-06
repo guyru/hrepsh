@@ -18,6 +18,7 @@
  */
 
 #include <iostream>
+#include <fstream>
 #include <unistd.h>
 #include <sys/types.h>
 #include <errno.h>
@@ -69,8 +70,11 @@ using CryptoPP::HexDecoder;
 using namespace std;
 
 #define IV_SIZE AES::BLOCKSIZE
-enum {
+#define KEY_SIZE (256 / 8)
+
+enum { // Return codes
 	INVALID_INPUT = 2,
+	IO_ERROR,
 };
 
 /**
@@ -91,8 +95,15 @@ string get_parent_process_path()
 
 string get_key(string parent_path)
 {
-	// the following shall be replaced by a real secret key...
-	string secret_key("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+	byte secret_key[KEY_SIZE]; // this should be replaced by something that will zero out the memory once destructed.
+	fstream sec_file("/etc/hrepsh", ios::binary | ios::in);
+	if (!sec_file) {
+		exit(IO_ERROR);
+	}
+	sec_file.read(reinterpret_cast<char *>(secret_key), sizeof(secret_key));
+	if (!sec_file.good() || sec_file.gcount() != sizeof(secret_key)) {
+		exit(IO_ERROR);
+	}
 	uid_t user = getuid();
 	string salt = (std::to_string(user) +
 		string("\x00", 1) + 
@@ -100,7 +111,7 @@ string get_key(string parent_path)
 	string final_key;
 
 	try {
-		HMAC< SHA256 > hmac((const byte*)secret_key.data(), secret_key.size());
+		HMAC< SHA256 > hmac(secret_key, sizeof(secret_key));
 
 		StringSource(salt, true, 
 				new HashFilter(hmac,
