@@ -10,7 +10,6 @@ set (CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 
 include (FindPkgConfig)
 find_package (Boost REQUIRED COMPONENTS program_options)
-set (LIBS ${Boost_LIBRARIES})
 include_directories (${Boost_INCLUDE_DIRS})
 
 include(CheckCXXCompilerFlag)
@@ -28,9 +27,10 @@ configure_file (
 	${CMAKE_SOURCE_DIR}/config.h.cmake
 	${CMAKE_BINARY_DIR}/config.h
 )
+include_directories (${CMAKE_BINARY_DIR})
 
-# # libcrypto++ support
-# pkg_check_modules (CRYPTOPP REQUIRED libcrypto++)
+# libcrypto++ support
+pkg_check_modules (CRYPTOPP REQUIRED libcrypto++)
 include_directories (${CRYPTOPP_INCLUDE_DIRS})
 
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${LIBGCRYPT_CFLAGS}")
@@ -41,8 +41,8 @@ set (SRC
 include_directories (${PROJECT_SOURCE_DIR})
 
 add_executable (hrepsh ${SRC})
-# target_link_libraries (hrepsh ${LIBS} ${LIBGCRYPT_LIBRARIES})
-target_link_libraries (hrepsh ${LIBS} ${CRYPTOPP_LIBRARIES})
+target_link_libraries (hrepsh ${CRYPTOPP_LIBRARIES})
+target_link_libraries (hrepsh ${Boost_LIBRARIES})
 
 install(TARGETS hrepsh RUNTIME DESTINATION bin/)
 

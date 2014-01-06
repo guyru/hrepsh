@@ -2,6 +2,15 @@
 HREPSH
 ======
 
+Installation
+============
+
+Seeding the secret file::
+
+  # touch /etc/hrepsh
+  # chmod 0200 /etc/hrepsh
+  # dd ibs=1 count=32 if=/dev/random of=/etc/hrepsh
+  # chmod 0400 /etc/hrepsh
 
 Security
 ========

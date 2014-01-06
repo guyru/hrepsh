@@ -94,7 +94,7 @@ string get_key(string parent_path)
 	// the following shall be replaced by a real secret key...
 	string secret_key("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 	uid_t user = getuid();
-	string salt = ((boost::format("%d") % user).str() + 
+	string salt = (std::to_string(user) +
 		string("\x00", 1) + 
 		parent_path);
 	string final_key;
