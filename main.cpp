@@ -96,7 +96,7 @@ string get_parent_process_path()
 string get_key(string parent_path)
 {
 	byte secret_key[KEY_SIZE]; // this should be replaced by something that will zero out the memory once destructed.
-	fstream sec_file("/etc/hrepsh", ios::binary | ios::in);
+	fstream sec_file(SECRET_FILE, ios::binary | ios::in);
 	if (!sec_file) {
 		exit(IO_ERROR);
 	}
@@ -150,8 +150,6 @@ int main(int argc, char **argv)
 	}
 
 	if (vm.count("help")) {
-		cout << PACKAGE_STRING
-			" - Secure password/passphrase generator" << endl;
 		cout << "Synopsis:" << endl;
 		cout << "  " PACKAGE " [options]" << endl << endl;
 		cout << desc << endl;

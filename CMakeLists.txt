@@ -23,6 +23,9 @@ else()
         message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif()
 
+set (SECRET_FILE /etc/hrepsh CACHE FILEPATH
+	"The location of the file which holds the encryption keys")
+
 configure_file (
 	${CMAKE_SOURCE_DIR}/config.h.cmake
 	${CMAKE_BINARY_DIR}/config.h
