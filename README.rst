@@ -12,6 +12,13 @@ Seeding the secret file::
   # dd ibs=1 count=32 if=/dev/random of=/etc/hrepsh
   # chmod 0400 /etc/hrepsh
 
+Dependencies
+------------
+In order to compile hrepsh you will need:
+
+* Crypto++
+* Boost
+
 Security
 ========
 
