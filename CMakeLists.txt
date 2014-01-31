@@ -36,12 +36,13 @@ include_directories (${CMAKE_BINARY_DIR})
 pkg_check_modules (CRYPTOPP REQUIRED libcrypto++)
 include_directories (${CRYPTOPP_INCLUDE_DIRS})
 
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${LIBGCRYPT_CFLAGS}")
 set (SRC
 	main.cpp
 )
 
 include_directories (${PROJECT_SOURCE_DIR})
+
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 
 add_executable (hrepsh ${SRC})
 target_link_libraries (hrepsh ${CRYPTOPP_LIBRARIES})
